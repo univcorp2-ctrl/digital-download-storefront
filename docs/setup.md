@@ -6,7 +6,6 @@
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
-python scripts/seed_sample.py
 uvicorn app.main:app --reload
 ```
 
@@ -28,11 +27,7 @@ uvicorn app.main:app --reload
 }
 ```
 
-編集後に以下を実行します。
-
-```bash
-python scripts/seed_sample.py
-```
+既存DBに反映するには、`data/store.db` を削除して再起動するか、商品IDを変えて起動してください。
 
 ## 3. Stripeを使う
 
@@ -54,7 +49,7 @@ Stripe側のWebhook URLは次にします。
 https://your-domain.example/api/stripe/webhook
 ```
 
-購読イベントではなく、まずは `checkout.session.completed` を送れば注文を `paid` に更新できます。
+まずは `checkout.session.completed` を送れば注文を `paid` に更新できます。
 
 ## 4. デプロイ候補
 
