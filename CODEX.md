@@ -9,8 +9,8 @@ Create a small, monetizable digital download storefront. Keep the first version 
 - Keep API behavior covered by tests.
 - Do not commit real Stripe keys or customer data.
 - Keep demo checkout available for CI and local development.
-- Prefer simple SQLite migrations until the product needs PostgreSQL.
-- Document any required production Secret in README and docs/setup.md.
+- Prefer simple SQLite storage until the product needs PostgreSQL.
+- Document required production Secrets in README and docs/setup.md.
 
 ## Useful commands
 
