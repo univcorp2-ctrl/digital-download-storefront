@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Digital Download Storefront</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <p class="eyebrow">Stripe-ready micro storefront</p>
+      <h1>今日から売れるデジタル商品ストア</h1>
+      <p>
+        PDF、テンプレート、ノウハウ資料を登録して、購入ボタンと注文管理をすぐに開始できます。
+      </p>
+    </header>
+
+    <main>
+      <section class="notice">
+        <strong>使い方:</strong> 商品カードのメール欄に入力して購入ボタンを押すと、Stripeまたはデモ決済へ進みます。
+      </section>
+      <section id="products" class="grid" aria-live="polite"></section>
+    </main>
+
+    <footer>
+      <p>Built with FastAPI, SQLite, and Stripe Checkout.</p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
