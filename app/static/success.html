@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Purchase complete</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="success-card">
+      <p class="eyebrow">Payment complete</p>
+      <h1>購入ありがとうございます</h1>
+      <p id="status">注文を確認しています...</p>
+      <p><a id="download" class="button hidden" href="#">ダウンロードする</a></p>
+      <p><a href="/">ストアへ戻る</a></p>
+    </main>
+    <script>
+      async function confirmOrder() {
+        const params = new URLSearchParams(window.location.search);
+        const orderId = params.get('order_id');
+        const status = document.querySelector('#status');
+        const download = document.querySelector('#download');
+        if (!orderId) {
+          status.textContent = '注文IDが見つかりません。';
+          return;
+        }
+        try {
+          await fetch(`/api/orders/${orderId}/confirm-demo`, { method: 'POST' });
+          const response = await fetch(`/api/orders/${orderId}`);
+          const order = await response.json();
+          if (order.status === 'paid' && order.download_url) {
+            status.textContent = `${order.product_name} の購入が完了しました。`;
+            download.href = order.download_url;
+            download.classList.remove('hidden');
+          } else {
+            status.textContent = '決済確認中です。数分後に再度確認してください。';
+          }
+        } catch (error) {
+          status.textContent = '注文確認でエラーが発生しました。';
+        }
+      }
+      confirmOrder();
+    </script>
+  </body>
+</html>
