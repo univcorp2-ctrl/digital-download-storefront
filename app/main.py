@@ -11,12 +11,13 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DB_PATH = BASE_DIR / "data" / "store.db"
 SAMPLE_PRODUCTS_PATH = BASE_DIR / "data" / "products.sample.json"
+DOWNLOAD_DIR = BASE_DIR / "downloads"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS products (
@@ -48,7 +49,7 @@ CREATE TABLE IF NOT EXISTS orders (
 app = FastAPI(
     title="Digital Download Storefront",
     description="Sell digital downloads with a Stripe-ready FastAPI storefront.",
-    version="1.0.0",
+    version="1.1.0",
 )
 
 
@@ -93,6 +94,21 @@ def get_public_base_url(default: str) -> str:
 
 def get_admin_api_key() -> str:
     return os.getenv("ADMIN_API_KEY", "change-me-local-admin-key")
+
+
+def is_production() -> bool:
+    return os.getenv("APP_ENV", "development").lower() == "production"
+
+
+def env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.lower() in {"1", "true", "yes", "on"}
+
+
+def allow_demo_checkout() -> bool:
+    return env_bool("ALLOW_DEMO_CHECKOUT", not is_production())
 
 
 def now_iso() -> str:
@@ -357,8 +373,20 @@ def order_response(order: dict[str, Any]) -> dict[str, Any]:
         "currency": order["currency"],
         "status": order["status"],
         "payment_provider": order["payment_provider"],
-        "download_url": order["file_url"] if order["status"] == "paid" else None,
+        "download_url": f"/api/orders/{order['id']}/download" if order["status"] == "paid" else None,
     }
+
+
+def local_download_path(file_url: str) -> Path | None:
+    if file_url.startswith(("http://", "https://")):
+        return None
+    file_path = (BASE_DIR / file_url.lstrip("/")).resolve()
+    downloads_root = DOWNLOAD_DIR.resolve()
+    if file_path != downloads_root and downloads_root not in file_path.parents:
+        raise HTTPException(status_code=400, detail="Invalid local download path")
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Download file not found")
+    return file_path
 
 
 @app.on_event("startup")
@@ -378,7 +406,7 @@ def success_page() -> HTMLResponse:
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "app_env": os.getenv("APP_ENV", "development")}
 
 
 @app.get("/api/products", response_model=list[ProductOut])
@@ -397,6 +425,12 @@ def products() -> list[dict[str, Any]]:
 
 @app.post("/api/checkout", response_model=CheckoutResponse)
 def checkout(payload: CheckoutRequest, request: Request) -> dict[str, str]:
+    if not os.getenv("STRIPE_SECRET_KEY") and not allow_demo_checkout():
+        raise HTTPException(
+            status_code=503,
+            detail="Stripe is not configured. Set STRIPE_SECRET_KEY or enable demo checkout.",
+        )
+
     product = get_product(payload.product_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -415,6 +449,8 @@ def checkout(payload: CheckoutRequest, request: Request) -> dict[str, str]:
 
 @app.post("/api/orders/{order_id}/confirm-demo", response_model=OrderOut)
 def confirm_demo_order(order_id: str) -> dict[str, Any]:
+    if not allow_demo_checkout():
+        raise HTTPException(status_code=403, detail="Demo checkout is disabled")
     order = get_order(order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -432,6 +468,21 @@ def order_status(order_id: str) -> dict[str, Any]:
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     return order_response(order)
+
+
+@app.get("/api/orders/{order_id}/download")
+def download_order(order_id: str) -> Response:
+    order = get_order(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order["status"] != "paid":
+        raise HTTPException(status_code=403, detail="Order is not paid")
+
+    file_url = order["file_url"]
+    local_path = local_download_path(file_url)
+    if local_path is None:
+        return RedirectResponse(file_url, status_code=302)
+    return FileResponse(local_path, filename=local_path.name)
 
 
 @app.get("/api/admin/orders.csv")
@@ -537,11 +588,14 @@ STOREFRONT_HTML = """<!doctype html>
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ product_id: form.dataset.productId, customer_email: form.email.value })
         });
-        if (!response.ok) throw new Error('Checkout failed');
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Checkout failed');
+        }
         const checkout = await response.json();
         window.location.href = checkout.checkout_url;
       } catch (error) {
-        message.textContent = '決済URLを作成できませんでした。';
+        message.textContent = error.message || '決済URLを作成できませんでした。';
         button.disabled = false;
       }
     });
@@ -569,7 +623,7 @@ SUCCESS_HTML = """<!doctype html>
       const status = document.querySelector('#status');
       const download = document.querySelector('#download');
       if (!orderId) { status.textContent = '注文IDが見つかりません。'; return; }
-      await fetch(`/api/orders/${orderId}/confirm-demo`, { method: 'POST' });
+      try { await fetch(`/api/orders/${orderId}/confirm-demo`, { method: 'POST' }); } catch (error) {}
       const response = await fetch(`/api/orders/${orderId}`);
       const order = await response.json();
       if (order.status === 'paid' && order.download_url) {
@@ -577,7 +631,7 @@ SUCCESS_HTML = """<!doctype html>
         download.href = order.download_url;
         download.style.display = 'inline-block';
       } else {
-        status.textContent = '決済確認中です。数分後に再度確認してください。';
+        status.textContent = '決済確認中です。Webhook反映後に再度確認してください。';
       }
     }
     confirmOrder();
