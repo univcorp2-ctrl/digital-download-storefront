@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: digital-download-storefront
+    runtime: docker
+    plan: starter
+    region: singapore
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: ALLOW_DEMO_CHECKOUT
+        value: "false"
+      - key: PORT
+        value: "10000"
+      - key: STORE_DB_PATH
+        value: /data/store.db
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: ADMIN_API_KEY
+        generateValue: true
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
