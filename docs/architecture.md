@@ -2,20 +2,20 @@
 
 ## 全体像
 
-このアプリは、デジタル商品を販売するための最小構成ストアです。静的HTMLのフロントエンド、FastAPIのバックエンド、SQLiteの永続化、Stripe Checkoutの決済導線で構成しています。
+このアプリは、デジタル商品を販売するための最小構成ストアです。静的HTMLをFastAPIが返し、バックエンドAPI、SQLite、Stripe Checkoutを組み合わせています。
 
 ```mermaid
 flowchart TD
-  Buyer[購入者] -->|商品を見る| Static[静的HTML/CSS/JS]
-  Static -->|GET /api/products| API[FastAPI API]
-  Static -->|POST /api/checkout| API
+  Buyer[購入者] -->|商品を見る| Page[HTML Storefront]
+  Page -->|GET /api/products| API[FastAPI]
+  Page -->|POST /api/checkout| API
   API -->|商品・注文| DB[(SQLite)]
   API -->|Checkout Session| Stripe[Stripe Checkout]
   Stripe -->|checkout.session.completed| Webhook[/api/stripe/webhook]
   Webhook --> DB
   Admin[運営者] -->|CSV取得| Export[/api/admin/orders.csv]
   Export --> DB
-  GitHubActions[GitHub Actions] -->|pytest / ruff / CSV artifact| Repo[Repository]
+  GitHubActions[GitHub Actions] -->|ruff / pytest / CSV artifact| Repo[Repository]
 ```
 
 ## ユーザー入力
@@ -27,11 +27,11 @@ flowchart TD
 
 ## フロントエンド
 
-`app/static` 配下の静的ファイルで構成しています。`/api/products` から商品一覧を取得し、購入フォームから `/api/checkout` にPOSTします。
+`app/main.py` 内のHTMLテンプレートを返すシンプルな構成です。`/api/products` から商品一覧を取得し、購入フォームから `/api/checkout` にPOSTします。
 
 ## バックエンド
 
-FastAPIがAPIと静的ファイル配信を担当します。Stripeが未設定の場合はデモ決済URLを返すため、初期状態でもE2Eの購入体験を確認できます。
+FastAPIが画面配信、API、Stripe連携を担当します。`STRIPE_SECRET_KEY` が未設定の場合はデモ決済URLを返すため、初期状態でも購入体験を確認できます。
 
 ## DB
 
