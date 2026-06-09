@@ -9,10 +9,12 @@
 - 商品一覧ページを自動表示
 - SQLiteで商品と注文を管理
 - Stripe Checkoutへ接続可能
-- Stripe未設定でもデモ決済で動作確認可能
-- 注文CSVをGitHub Actions artifactとして出力
+- Stripe未設定でも開発環境ではデモ決済で動作確認可能
+- 本番環境ではデモ決済を無効化し、Stripe設定を必須化
+- 購入済み注文だけダウンロードURLを発行
+- Render BlueprintとDockerで本番デプロイ可能
 - Codespaces / devcontainer 対応
-- pytest と ruff のCI付き
+- pytest と ruff のテスト構成付き
 
 ## すぐ動かす
 
@@ -25,32 +27,40 @@ uvicorn app.main:app --reload
 
 ブラウザで `http://127.0.0.1:8000` を開きます。
 
-## 本番運用に必要なもの
+Dockerでも起動できます。
+
+```bash
+docker compose up --build
+```
+
+## 本番稼働
+
+Render向けの `render.yaml` と `Dockerfile` を同梱済みです。詳細は [docs/production.md](docs/production.md) を確認してください。
+
+本番で必要な環境変数 / Secret は以下です。
 
 | 用途 | 環境変数 / Secret | 説明 |
 | --- | --- | --- |
+| 本番モード | `APP_ENV=production` | 本番向け動作に切り替え |
+| デモ決済停止 | `ALLOW_DEMO_CHECKOUT=false` | 本番では必ずfalse |
 | 公開URL | `PUBLIC_BASE_URL` | 例: `https://your-domain.example` |
 | Stripe秘密鍵 | `STRIPE_SECRET_KEY` | Stripe Checkout作成に使用 |
 | Stripe Webhook署名 | `STRIPE_WEBHOOK_SECRET` | 決済完了通知の検証に使用 |
-| DB保存先 | `STORE_DB_PATH` | 例: `/data/store.db` |
+| DB保存先 | `STORE_DB_PATH` | Renderでは `/data/store.db` |
 | 管理用キー | `ADMIN_API_KEY` | 注文CSVの管理APIを保護 |
 
 Secretsの実値はGitHubやREADMEに書かず、ホスティングサービス側のSecret機能に登録してください。
 
 ## 商品を追加する
 
-`data/products.sample.json` を編集し、初回起動または再起動でSQLiteに投入します。各商品の `file_url` は購入後に渡すダウンロードURLです。本番では署名付きURLや会員認証の併用を推奨します。
+`data/products.sample.json` を編集します。初回起動時にSQLiteへ投入されます。各商品の `file_url` には `downloads/your-file.txt` のようなローカルファイル、または外部URLを指定できます。
 
 ## 注文CSV
 
-ローカルまたはCIで以下を実行できます。
-
 ```bash
-mkdir -p artifacts
-python -c "from pathlib import Path; from app.main import seed_if_empty, export_orders_csv; seed_if_empty(); export_orders_csv(Path('artifacts/orders.csv'))"
+curl -H "x-admin-api-key: YOUR_ADMIN_API_KEY" \
+  https://YOUR_PUBLIC_DOMAIN/api/admin/orders.csv
 ```
-
-GitHub Actionsの `workflow_dispatch` でも `sales-export` artifact を取得できます。
 
 ## API
 
@@ -59,8 +69,9 @@ GitHub Actionsの `workflow_dispatch` でも `sales-export` artifact を取得�
 | GET | `/api/health` | ヘルスチェック |
 | GET | `/api/products` | 商品一覧 |
 | POST | `/api/checkout` | 決済セッション作成 |
-| POST | `/api/orders/{order_id}/confirm-demo` | デモ決済完了 |
+| POST | `/api/orders/{order_id}/confirm-demo` | 開発用デモ決済完了。本番では無効 |
 | GET | `/api/orders/{order_id}` | 注文確認 |
+| GET | `/api/orders/{order_id}/download` | 支払い済み商品のダウンロード |
 | GET | `/api/admin/orders.csv` | 注文CSV出力。`x-admin-api-key` が必要 |
 | POST | `/api/stripe/webhook` | Stripe決済完了Webhook |
 
