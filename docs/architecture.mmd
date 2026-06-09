@@ -1,11 +1,11 @@
 flowchart TD
-  Buyer[購入者] -->|商品を見る| Static[静的HTML/CSS/JS]
-  Static -->|GET /api/products| API[FastAPI API]
-  Static -->|POST /api/checkout| API
+  Buyer[購入者] -->|商品を見る| Page[HTML Storefront]
+  Page -->|GET /api/products| API[FastAPI]
+  Page -->|POST /api/checkout| API
   API -->|商品・注文| DB[(SQLite)]
   API -->|Checkout Session| Stripe[Stripe Checkout]
   Stripe -->|checkout.session.completed| Webhook[/api/stripe/webhook]
   Webhook --> DB
   Admin[運営者] -->|CSV取得| Export[/api/admin/orders.csv]
   Export --> DB
-  GitHubActions[GitHub Actions] -->|pytest / ruff / CSV artifact| Repo[Repository]
+  GitHubActions[GitHub Actions] -->|ruff / pytest / CSV artifact| Repo[Repository]
