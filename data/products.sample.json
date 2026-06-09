@@ -1,29 +1,29 @@
 [
   {
-    "id": "starter-guide",
-    "name": "副業スターターPDF",
-    "description": "最初の商品設計、価格、販売ページ作成を1日で進めるチェックリスト付きPDF。",
+    "id": "starter-kit",
+    "name": "副業スターターキット",
+    "description": "商品設計、価格、販売ページ作成を1日で進める実践チェックリスト。",
     "price_cents": 980,
     "currency": "jpy",
-    "file_url": "https://example.com/downloads/starter-guide.pdf",
+    "file_url": "downloads/starter-kit.txt",
     "active": true
   },
   {
-    "id": "notion-template",
-    "name": "収益管理Notionテンプレート",
+    "id": "revenue-dashboard-template",
+    "name": "収益管理テンプレート",
     "description": "売上、広告費、利益、改善メモをまとめて管理するテンプレート。",
     "price_cents": 1480,
     "currency": "jpy",
-    "file_url": "https://example.com/downloads/notion-template",
+    "file_url": "downloads/revenue-dashboard-template.txt",
     "active": true
   },
   {
-    "id": "landing-page-kit",
+    "id": "landing-page-copy-kit",
     "name": "販売ページ改善キット",
     "description": "見出し、FAQ、CTA、価格表のコピーテンプレート集。",
     "price_cents": 2980,
     "currency": "jpy",
-    "file_url": "https://example.com/downloads/landing-page-kit.zip",
+    "file_url": "downloads/landing-page-copy-kit.txt",
     "active": true
   }
 ]
