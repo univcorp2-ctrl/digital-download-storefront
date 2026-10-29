@@ -515,10 +515,23 @@ async def stripe_webhook(request: Request) -> dict[str, str]:
     except stripe.SignatureVerificationError as exc:
         raise HTTPException(status_code=400, detail="Invalid signature") from exc
 
-    if event["type"] == "checkout.session.completed":
+    # Completed Checkout does not always mean that funds have been collected.
+    # In particular, delayed payment methods can complete Checkout while unpaid.
+    if event["type"] in {"checkout.session.completed", "checkout.session.async_payment_succeeded"}:
         session = event["data"]["object"]
-        order_id = session.get("metadata", {}).get("order_id")
-        if order_id:
+        metadata = session.get("metadata") or {}
+        order_id = metadata.get("order_id")
+        order = get_order(order_id) if order_id else None
+        if (
+            order
+            and order["payment_provider"] == "stripe"
+            and order["product_id"] == metadata.get("product_id")
+            and order["status"] != "paid"
+            and session.get("mode") == "payment"
+            and session.get("payment_status") == "paid"
+            and order["amount_cents"] == session.get("amount_total")
+            and order["currency"].lower() == str(session.get("currency", "")).lower()
+        ):
             mark_order_paid(order_id)
     return {"status": "received"}
 
@@ -561,8 +574,11 @@ STOREFRONT_HTML = """<!doctype html>
   <footer>Built with FastAPI, SQLite, and Stripe Checkout.</footer>
   <script>
     const productsEl = document.querySelector('#products');
+    const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (ch) => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[ch]));
     function formatPrice(priceCents, currency) {
-      return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: currency.toUpperCase() }).format(priceCents / 100);
+      const formatter = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: currency.toUpperCase() });
+      const fractionDigits = formatter.resolvedOptions().maximumFractionDigits;
+      return formatter.format(priceCents / (10 ** fractionDigits));
     }
     async function loadProducts() {
       productsEl.innerHTML = '<p>商品を読み込んでいます...</p>';
@@ -572,7 +588,7 @@ STOREFRONT_HTML = """<!doctype html>
       products.forEach((product) => {
         const card = document.createElement('article');
         card.className = 'card';
-        card.innerHTML = `<h2>${product.name}</h2><p>${product.description}</p><p class="price">${formatPrice(product.price_cents, product.currency)}</p><form data-product-id="${product.id}"><label>メールアドレス<input name="email" type="email" placeholder="you@example.com" required /></label><button type="submit">購入する</button></form><p class="message" role="status"></p>`;
+        card.innerHTML = `<h2>${escapeHtml(product.name)}</h2><p>${escapeHtml(product.description)}</p><p class="price">${formatPrice(product.price_cents, product.currency)}</p><form data-product-id="${escapeHtml(product.id)}"><label>メールアドレス<input name="email" type="email" placeholder="you@example.com" required /></label><button type="submit">購入する</button></form><p class="message" role="status"></p>`;
         productsEl.appendChild(card);
       });
     }
